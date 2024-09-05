@@ -1,0 +1,187 @@
+# Import necessary libraries for numerical operations, data manipulation, and visualization
+import warnings
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Ignore all warnings to avoid cluttering output
+warnings.filterwarnings('ignore')
+
+# Load the dataset into a pandas DataFrame and preview the first few rows
+housing = pd.read_csv("/content/Housing.csv")
+housing.head()
+
+# Display the shape of the DataFrame to understand the number of rows and columns
+housing.shape
+
+# Get detailed information about the dataset (data types, null values, memory usage, etc.)
+housing.info()
+
+# Generate descriptive statistics (mean, median, std dev, etc.) to understand the data distribution
+housing.describe()
+
+# Check for any missing values as a percentage of the dataset
+housing.isnull().sum() * 100 / housing.shape[0]
+
+# 1. Initial Visualization of the data
+# Create multiple boxplots to visually inspect outliers for each feature
+fig, axs = plt.subplots(2, 3, figsize=(10, 5))
+palette = sns.color_palette("husl", 6)  # Define a color palette for the boxplots
+
+# Plot boxplots for key numeric variables
+sns.boxplot(data=housing, y='price', ax=axs[0,0], color=palette[0])
+sns.boxplot(data=housing, y='area', ax=axs[0,1], color=palette[1])
+sns.boxplot(data=housing, y='bedrooms', ax=axs[0,2], color=palette[2])
+sns.boxplot(data=housing, y='bathrooms', ax=axs[1,0], color=palette[3])
+sns.boxplot(data=housing, y='stories', ax=axs[1,1], color=palette[4])
+sns.boxplot(data=housing, y='parking', ax=axs[1,2], color=palette[5])
+
+plt.tight_layout()
+plt.show()
+
+# 2. Remove outliers using Interquartile Range (IQR) for 'price' and 'area'
+# First, remove outliers in the 'price' column
+plt.boxplot(housing.price)
+Q1 = housing.price.quantile(0.25)
+Q3 = housing.price.quantile(0.75)
+IQR = Q3 - Q1
+housing = housing[(housing.price >= Q1 - 1.5 * IQR) & (housing.price <= Q3 + 1.5 * IQR)]
+
+# Then, remove outliers in the 'area' column
+plt.boxplot(housing.area)
+Q1 = housing.area.quantile(0.25)
+Q3 = housing.area.quantile(0.75)
+IQR = Q3 - Q1
+housing = housing[(housing.area >= Q1 - 1.5 * IQR) & (housing.area <= Q3 + 1.5 * IQR)]
+
+# 3. Replot the data after outlier removal to check its effect on distribution
+fig, axs = plt.subplots(2, 3, figsize=(10, 5))
+palette = sns.color_palette("husl", 6)
+sns.boxplot(data=housing, y='price', ax=axs[0,0], color=palette[0])
+sns.boxplot(data=housing, y='area', ax=axs[0,1], color=palette[1])
+sns.boxplot(data=housing, y='bedrooms', ax=axs[0,2], color=palette[2])
+sns.boxplot(data=housing, y='bathrooms', ax=axs[1,0], color=palette[3])
+sns.boxplot(data=housing, y='stories', ax=axs[1,1], color=palette[4])
+sns.boxplot(data=housing, y='parking', ax=axs[1,2], color=palette[5])
+
+plt.tight_layout()
+plt.show()
+
+# 4. Pair Plot for Initial Feature Exploration
+# Pair plot to observe relationships and distributions of features
+plt.figure(figsize=(5, 3))
+sns.pairplot(housing)
+plt.show()
+
+# 5. Boxplots for Categorical Variables against 'price'
+# Analyze the impact of categorical features on 'price'
+plt.figure(figsize=(10, 6))
+plt.subplot(2, 3, 1)
+sns.boxplot(x='mainroad', y='price', data=housing)
+plt.subplot(2, 3, 2)
+sns.boxplot(x='guestroom', y='price', data=housing)
+plt.subplot(2, 3, 3)
+sns.boxplot(x='basement', y='price', data=housing)
+plt.subplot(2, 3, 4)
+sns.boxplot(x='hotwaterheating', y='price', data=housing)
+plt.subplot(2, 3, 5)
+sns.boxplot(x='airconditioning', y='price', data=housing)
+plt.subplot(2, 3, 6)
+sns.boxplot(x='furnishingstatus', y='price', data=housing)
+plt.show()
+
+# 6. Interaction of Categorical Variables
+# Plot showing how furnishing status and airconditioning affect 'price'
+plt.figure(figsize=(10, 5))
+sns.boxplot(x='furnishingstatus', y='price', hue='airconditioning', data=housing)
+plt.show()
+
+# 7. Convert Categorical Variables into Numerical Format
+# Define binary mapping for certain categorical variables and apply it
+varlist = ['mainroad', 'guestroom', 'basement', 'hotwaterheating', 'airconditioning', 'prefarea']
+def binary_map(x):
+    return x.map({'yes': 1, "no": 0})
+housing[varlist] = housing[varlist].apply(binary_map)
+
+# 8. Handling the 'furnishingstatus' column using one-hot encoding
+status = pd.get_dummies(housing['furnishingstatus'], drop_first=True)
+housing = pd.concat([housing, status], axis=1)
+housing.drop(['furnishingstatus'], axis=1, inplace=True)
+
+# 9. Train-Test Split
+# Split the dataset into training and testing sets (70% training, 30% testing)
+from sklearn.model_selection import train_test_split
+np.random.seed(0)
+df_train, df_test = train_test_split(housing, train_size=0.7, test_size=0.3, random_state=100)
+
+# 10. Feature Scaling using MinMaxScaler
+# Scale the numerical features to normalize the data
+from sklearn.preprocessing import MinMaxScaler
+scaler = MinMaxScaler()
+num_vars = ['area', 'bedrooms', 'bathrooms', 'stories', 'parking', 'price']
+df_train[num_vars] = scaler.fit_transform(df_train[num_vars])
+
+# 11. Correlation Heatmap
+# Plot heatmap to visualize the correlation between features in the training set
+plt.figure(figsize=(16, 10))
+sns.heatmap(df_train.corr(), annot=True, cmap="YlGnBu")
+plt.show()
+
+# 12. Feature Selection using RFE (Recursive Feature Elimination)
+from sklearn.linear_model import LinearRegression
+from sklearn.feature_selection import RFE
+lm = LinearRegression()
+lm.fit(df_train.drop('price', axis=1), df_train['price'])
+
+# RFE selects top 6 features for modeling
+rfe = RFE(estimator=lm, n_features_to_select=6)
+rfe = rfe.fit(df_train.drop('price', axis=1), df_train['price'])
+
+# Extract the selected features
+selected_columns = df_train.columns[rfe.support_]
+selected_columns
+
+# 13. Build a Linear Model using StatsModels and evaluate the results
+import statsmodels.api as sm
+X_train_rfe = sm.add_constant(df_train[selected_columns])
+lm = sm.OLS(df_train['price'], X_train_rfe).fit()
+print(lm.summary())
+
+# 14. Variance Inflation Factor (VIF) to check multicollinearity
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+vif = pd.DataFrame()
+X = X_train_rfe
+vif['Features'] = X.columns
+vif['VIF'] = [variance_inflation_factor(X.values, i) for i in range(X.shape[1])]
+vif['VIF'] = round(vif['VIF'], 2)
+vif = vif.sort_values(by="VIF", ascending=False)
+vif
+
+# 15. Residual Analysis
+# Plot the distribution of error terms (residuals)
+res = df_train['price'] - lm.predict(X_train_rfe)
+plt.figure()
+sns.distplot(res, bins=20)
+plt.title('Error Terms')
+plt.xlabel('Residuals')
+plt.show()
+
+# 16. Model Testing on Test Data
+# Scale the test set and make predictions
+df_test[num_vars] = scaler.fit_transform(df_test[num_vars])
+X_test_rfe = sm.add_constant(df_test[selected_columns])
+y_pred = lm.predict(X_test_rfe)
+
+# Evaluate the model using R-squared
+from sklearn.metrics import r2_score
+r2_score(df_test['price'], y_pred)
+
+# 17. Predicted vs Actual Values Plot
+# Scatter plot of actual vs predicted values to visually evaluate model performance
+plt.figure()
+plt.scatter(df_test['price'], y_pred)
+plt.title('Actual vs Predicted Prices')
+plt.xlabel('Actual Price')
+plt.ylabel('Predicted Price')
+plt.show()
